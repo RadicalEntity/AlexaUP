@@ -6,43 +6,72 @@ if (!serviceAccountKeyPath) {
 }
 
 const serviceAccount = require(serviceAccountKeyPath);
-
 const admin = require('firebase-admin');
-const serviceAccount = require('./path/to/your/serviceAccountKey.json');
+const express = require('express');
+const bodyParser = require('body-parser');
+const app = express();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://alexauserprofiles-default-rtdb.firebaseio.com/', // Replace with your database URL
+  databaseURL: 'https://alexauserprofiles-default-rtdb.firebaseio.com/',
 });
 
-app.post('/store-data', (req, res) => {
-    const data = req.body; // Data sent from Voiceflow
-    const db = admin.database();
-    const ref = db.ref('users');
+const db = admin.database();
+
+// Add middleware to parse JSON data
+app.use(bodyParser.json());
+
+app.get('/getUser', (req, res) => {
+  const userResponse = req.query.response;
   
-    ref.push(data, (error) => {
-      if (error) {
-        res.status(500).send('Data could not be saved.');
+  if (userResponse === 'Rachel') {
+    res.json({ user: 'user1' });
+  } else if (userResponse === 'Maria') {
+    res.json({ user: 'user2' });
+  } else {
+    res.status(400).json({ error: 'Invalid user response' });
+  }
+});
+
+app.get('/getUserLanguage', (req, res) => {
+  const userValue = req.query.user;
+
+  // Assuming you are using Firebase Realtime Database
+  const usersRef = db.ref(); // Reference to the root of the database
+
+  // Query Firebase for the user data based on the user value
+  usersRef
+    .orderByKey() // Assuming user1 and user2 are keys
+    .equalTo(userValue)
+    .once('value', (snapshot) => {
+      const matchingUsers = snapshot.val();
+
+      if (matchingUsers) {
+        // Extract the user data for the matching user
+        const userData = matchingUsers[userValue];
+
+        if (userData) {
+          // Extract the language property from the user data
+          const userLanguage = userData.language;
+
+          if (userLanguage) {
+            res.json({ language: userLanguage });
+          } else {
+            res.status(400).json({ error: 'Language property not found for the user' });
+          }
+        } else {
+          res.status(400).json({ error: 'User data not found for the user' });
+        }
       } else {
-        res.status(200).send('Data saved successfully.');
+        res.status(404).json({ error: 'User not found' });
       }
     });
-  });
+});
 
-  
-const user1 = {
-  name: 'Rachel',
-  email: 'john@example.com',
-};
-  
-const user2 = {
-  name: 'Maria',
-  email: 'jane@example.com',
-};
 
-const user1Ref = db.ref('users/user1');
-const user2Ref = db.ref('users/user2');
-  
-user1Ref.set(user1);
-user2Ref.set(user2);
-  
+// Start the server
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
